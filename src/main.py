@@ -6,12 +6,87 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
+import firebase_admin
+from firebase_admin import storage
+from firebase_functions import scheduler_fn
+
 from notification_sender import NotificationSender
 from welstory_crawler import WelstoryCrawler
 
 
 # 요일 이름 상수
 WEEKDAY_NAMES_KR = ['월', '화', '수', '목', '금', '토', '일']
+KST = timezone(timedelta(hours=9))
+MENU_OBJECT_PREFIX = "menus"
+FUNCTION_SECRETS = [
+    "MATTERMOST_WEBHOOK_URL", "DISCORD_WEBHOOK_URL", "WELSTORY_USERNAME",
+    "WELSTORY_PASSWORD", "MATTERMOST_BASE_URL", "MATTERMOST_CHANNEL_ID",
+    "MM_LOGIN_JSON", "GEMINI_API_KEY",
+]
+
+
+def _monday_for(date: datetime) -> datetime:
+    """Return the Monday for a KST datetime."""
+    return date - timedelta(days=date.weekday())
+
+
+def _menu_object_name(date: datetime) -> str:
+    """Return the Cloud Storage object name for date's weekly menu."""
+    return f"{MENU_OBJECT_PREFIX}/{_monday_for(date).strftime('%Y-%m-%d')}.md"
+
+
+def _menu_bucket():
+    """Return the configured Firebase Storage bucket using runtime credentials."""
+    bucket_name = os.environ.get("MENU_STORAGE_BUCKET")
+    if not bucket_name:
+        raise ValueError("MENU_STORAGE_BUCKET 환경변수가 설정되지 않았습니다.")
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(options={"storageBucket": bucket_name})
+    return storage.bucket()
+
+
+@scheduler_fn.on_schedule(
+    schedule="20 9 * * 1", timezone=scheduler_fn.Timezone("Asia/Seoul"),
+    region="asia-northeast3", timeout_sec=540, max_instances=1,
+    secrets=FUNCTION_SECRETS,
+)
+def crawl_weekly_menu(event: scheduler_fn.ScheduledEvent) -> None:
+    """Fetch this week's menu and persist it to Cloud Storage every Monday."""
+    del event
+    with tempfile.TemporaryDirectory() as temp_dir:
+        if not crawl_weekly(temp_dir):
+            raise RuntimeError("주간 식단 크롤링에 실패했습니다.")
+        now_kst = datetime.now(KST)
+        local_path = os.path.join(temp_dir, f"{_monday_for(now_kst).strftime('%Y-%m-%d')}.md")
+        if not os.path.exists(local_path):
+            raise RuntimeError(f"생성된 주간 식단 파일을 찾을 수 없습니다: {local_path}")
+        object_name = _menu_object_name(now_kst)
+        bucket = _menu_bucket()
+        bucket.blob(object_name).upload_from_filename(
+            local_path, content_type="text/markdown; charset=utf-8"
+        )
+        print(f"✓ Cloud Storage 저장 완료: gs://{bucket.name}/{object_name}")
+
+
+@scheduler_fn.on_schedule(
+    schedule="30 9 * * 1-5", timezone=scheduler_fn.Timezone("Asia/Seoul"),
+    region="asia-northeast3", timeout_sec=180, max_instances=1,
+    secrets=FUNCTION_SECRETS,
+)
+def send_daily_lunch_notification(event: scheduler_fn.ScheduledEvent) -> None:
+    """Load today's weekly menu from Cloud Storage and send its lunch notice."""
+    del event
+    now_kst = datetime.now(KST)
+    date = now_kst.strftime("%Y-%m-%d")
+    object_name = _menu_object_name(now_kst)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local_path = os.path.join(temp_dir, os.path.basename(object_name))
+        blob = _menu_bucket().blob(object_name)
+        if not blob.exists():
+            raise RuntimeError(f"Cloud Storage에 주간 식단이 없습니다: {object_name}")
+        blob.download_to_filename(local_path)
+        if not send_daily_lunch(date=date, db_path=temp_dir):
+            raise RuntimeError("일일 식단 알림 전송에 실패했습니다.")
 
 
 def crawl_weekly(db_path: str = "db") -> bool:

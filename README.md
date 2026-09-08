@@ -110,6 +110,49 @@ Repository Settings > Secrets and variables > Actions에서 다음 Secret 추가
 매일 오전 9시 10분~9시 40분(KST)에 자동으로 실행됩니다 (GitHub Actions 지연 발생 가능).
 수동 실행: Actions > "Daily Lunch Notification" > "Run workflow"
 
+### Firebase Functions 자동화
+
+GitHub Actions 예약 지연을 피하기 위한 Firebase Functions 배포 구성이 포함되어 있습니다. 기존 Python 로직을 그대로 호출하며, 주간 메뉴는 작업 환경의 로컬 파일 대신 Cloud Storage에 저장합니다.
+
+1. Firebase 프로젝트에서 **Cloud Functions**와 **Cloud Storage**를 활성화하고 Blaze 요금제를 사용합니다.
+2. Firebase CLI 로그인 후 프로젝트를 선택합니다.
+
+```bash
+firebase login
+firebase use --add
+```
+
+3. `src/.env.example`을 `src/.env`로 복사하고 `MENU_STORAGE_BUCKET`에 Firebase Storage 버킷 이름(예: `your-project-id.firebasestorage.app`)을 입력합니다.
+4. GitHub Secrets의 값을 Firebase Secret Manager로 등록합니다.
+
+```bash
+firebase functions:secrets:set MATTERMOST_WEBHOOK_URL
+firebase functions:secrets:set DISCORD_WEBHOOK_URL
+firebase functions:secrets:set WELSTORY_USERNAME
+firebase functions:secrets:set WELSTORY_PASSWORD
+firebase functions:secrets:set MATTERMOST_BASE_URL
+firebase functions:secrets:set MATTERMOST_CHANNEL_ID
+firebase functions:secrets:set MM_LOGIN_JSON
+firebase functions:secrets:set GEMINI_API_KEY
+```
+
+각 Secret은 선택 기능을 쓰지 않아도 등록해야 하며, 사용하지 않는 값은 빈 값으로 입력할 수 있습니다. 웹훅은 최소 하나에 실제 값을 입력해야 합니다.
+
+5. 배포합니다.
+
+```bash
+firebase deploy --only functions
+```
+
+배포 시 Cloud Scheduler 작업이 자동 생성됩니다.
+
+- `crawl_weekly_menu`: 매주 월요일 09:20 (Asia/Seoul), 메뉴를 `menus/YYYY-MM-DD.md`에 저장
+- `send_daily_lunch_notification`: 평일 09:30 (Asia/Seoul), Storage에서 메뉴를 읽어 웹훅 발송
+
+먼저 크롤링 함수를 수동 실행해 Storage 파일 생성을 확인한 후 알림 함수를 시험하세요. 정상 확인 전에는 GitHub Actions 스케줄을 끄지 마세요. 확인 후에는 두 스케줄을 비활성화하거나 제거해야 중복 전송되지 않습니다.
+
+> Scheduler는 드물게 중복 호출될 수 있습니다. 두 함수는 동시 실행을 한 인스턴스로 제한합니다.
+
 ## 출력 형식 예시
 
 ```markdown

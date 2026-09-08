@@ -1,0 +1,9 @@
+{
+  "functions": [
+    {
+      "source": "src",
+      "codebase": "default",
+      "runtime": "python311"
+    }
+  ]
+}
