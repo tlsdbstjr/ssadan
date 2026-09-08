@@ -2,6 +2,9 @@ name: Weekly Menu Crawl (Wellstory API)
 
 on:
   workflow_dispatch:  # 수동 실행 가능
+  schedule:
+    # 월요일 09:20 KST (월요일 00:20 UTC)
+    - cron: "20 0 * * 1"
 
 jobs:
   crawl-weekly-menu:

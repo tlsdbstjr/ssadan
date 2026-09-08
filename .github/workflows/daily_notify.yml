@@ -2,6 +2,9 @@ name: Daily Lunch Notification
 
 on:
   workflow_dispatch:  # 수동 실행 가능
+  schedule:
+    # 평일 09:30 KST (평일 00:30 UTC)
+    - cron: "30 0 * * 1-5"
 
 jobs:
   send-daily-lunch:
