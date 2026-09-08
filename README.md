@@ -127,7 +127,6 @@ firebase use --add
 
 ```bash
 firebase functions:secrets:set MATTERMOST_WEBHOOK_URL
-firebase functions:secrets:set DISCORD_WEBHOOK_URL
 firebase functions:secrets:set WELSTORY_USERNAME
 firebase functions:secrets:set WELSTORY_PASSWORD
 firebase functions:secrets:set MATTERMOST_BASE_URL
