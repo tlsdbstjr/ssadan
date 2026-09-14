@@ -52,15 +52,12 @@ class MattermostImageFetcher:
         """이미지 파일 여부 확인 (png/jpg/jpeg)"""
         return filename.lower().rsplit(".", 1)[-1] in {"png", "jpg", "jpeg"}
 
-    def _is_post_this_week(self, post: dict) -> bool:
-        """게시글 업로드 시각(create_at)이 이번 주(월~금, KST 기준)인지 확인"""
+    def _is_post_within_last_7_days(self, post: dict) -> bool:
+        """게시글 업로드 시각(create_at)이 현재부터 최근 7일 이내인지 확인"""
         create_at_ms = post.get("create_at", 0)
         post_date = datetime.fromtimestamp(create_at_ms / 1000, tz=KST)
-        today = datetime.now(KST)
-        days_since_monday = today.weekday()
-        monday = (today - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
-        friday = (monday + timedelta(days=4)).replace(hour=23, minute=59, second=59, microsecond=999999)
-        return monday <= post_date <= friday
+        now = datetime.now(KST)
+        return now - timedelta(days=7) <= post_date <= now
 
     def _get_file_info(self, file_id: str) -> dict:
         """파일 메타데이터 조회"""
@@ -99,42 +96,12 @@ class MattermostImageFetcher:
         self.login()
         posts = self._get_recent_posts()
 
-        # 이미지가 첨부된 게시글 순회 (최신 순)
-        for post in posts:
-            file_ids = post.get("file_ids") or []
-            post_message = post.get("message", "")
-
-            if not self._is_post_this_week(post):
-                print(f"⏭️  이번 주 게시글이 아님, 건너뜀 (create_at: {post.get('create_at')})")
-                continue
-
-            for file_id in file_ids:
-                try:
-                    info = self._get_file_info(file_id)
-                except Exception:
-                    continue
-
-                filename = info.get("name", "")
-                if not self._is_image_file(filename):
-                    continue
-
-                # 파일명이나 게시글 본문에서 10층/공존 키워드 확인
-                combined = (filename + post_message).lower()
-                is_floor10 = any(kw in combined for kw in ["10층", "10f", "공존"])
-
-                if is_floor10:
-                    save_dir = dest_dir or tempfile.gettempdir()
-                    os.makedirs(save_dir, exist_ok=True)
-                    dest_path = os.path.join(save_dir, filename)
-                    self._download_file(file_id, dest_path)
-                    print(f"✓ 10층 식단 이미지 다운로드: {dest_path}")
-                    return dest_path
-
-        # 키워드 매칭 실패 시 이번 주 최신 이미지로 fallback
+        # Mattermost API가 반환한 최신순 게시글에서 최근 7일 이내의 첫 이미지를 사용
         for post in posts:
             file_ids = post.get("file_ids") or []
 
-            if not self._is_post_this_week(post):
+            if not self._is_post_within_last_7_days(post):
+                print(f"⏭️  최근 7일 이내 게시글이 아님, 건너뜀 (create_at: {post.get('create_at')})")
                 continue
 
             for file_id in file_ids:
@@ -151,7 +118,7 @@ class MattermostImageFetcher:
                 os.makedirs(save_dir, exist_ok=True)
                 dest_path = os.path.join(save_dir, filename)
                 self._download_file(file_id, dest_path)
-                print(f"⚠️  10층 키워드 미확인, 최신 이미지 사용: {dest_path}")
+                print(f"✓ 최근 7일 이내 최신 10층 식단 이미지 다운로드: {dest_path}")
                 return dest_path
 
         raise RuntimeError("채널에서 이미지를 찾을 수 없습니다.")
