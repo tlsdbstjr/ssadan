@@ -36,7 +36,7 @@ def _build_prompt(reference_date: datetime = None) -> str:
         "- 위 테이블에서 ? 부분만 실제 메뉴로 채워서 동일한 Markdown 테이블 형식으로 출력하세요.\n"
         "- 도시락 메뉴 항목은 쉼표(,)로 구분하세요.\n"
         "- 브런치/샐러드 메뉴 항목은 & 로 구분하세요.\n"
-        "- 이미지에서 해당 날짜/코너의 메뉴가 없으면 - 로 표시하세요.\n"
+        "- 이미지에 휴무, 미운영 또는 메뉴 없음으로 표시된 날짜/코너는 휴무로 표시하세요.\n"
         "- 다른 설명 없이 Markdown 테이블만 출력하세요."
     )
 
@@ -160,7 +160,11 @@ def _parse_response(text: str, reference_date: datetime = None) -> Dict[str, Dic
             if i + 1 >= len(cols):
                 break
             menu = cols[i + 1].strip()
-            if menu and menu != "-":
+            if menu:
+                # 메뉴가 없는 휴무일도 정상적으로 파싱된 항목으로 계산한다.
+                # 이전 프롬프트의 '-' 응답도 기존 실행과의 호환을 위해 휴무로 정규화한다.
+                if menu == "-":
+                    menu = "휴무"
                 if date_str not in result:
                     result[date_str] = {}
                 result[date_str][course] = menu
