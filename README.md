@@ -55,6 +55,9 @@ DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/xxx/yyy
 # 식당 검색어 (기본값: 멀티캠퍼스, 변경 필요 시만 설정)
 # WELSTORY_RESTAURANT_QUERY=멀티캠퍼스
 
+# 웰스토리 로그인 정보
+WELSOTRY_LOGIN_JSON='{"username":"your-welstory-username","password":"your-welstory-password"}'
+
 # 10층 식단 이미지 자동 수집 (선택사항, 미설정 시 placeholder 유지)
 MATTERMOST_BASE_URL=https://your-mattermost-server.com
 MATTERMOST_CHANNEL_ID=your-channel-id
@@ -91,6 +94,7 @@ python main.py daily --date 2026-01-15 --db ../db
 #### 1. GitHub Secrets 설정
 
 Repository Settings > Secrets and variables > Actions에서 다음 Secret 추가:
+- `WELSOTRY_LOGIN_JSON`: 웰스토리 로그인 정보 JSON, 예: `{"username":"your-welstory-username","password":"your-welstory-password"}`
 - `MATTERMOST_WEBHOOK_URL`: Mattermost Incoming Webhook URL (식단 알림용, 선택사항)
 - `DISCORD_WEBHOOK_URL`: Discord Webhook URL (식단 알림용, 선택사항)
 - `MATTERMOST_BASE_URL`: Mattermost 서버 URL (10층 이미지 수집용, 선택사항)
@@ -98,7 +102,7 @@ Repository Settings > Secrets and variables > Actions에서 다음 Secret 추가
 - `MM_LOGIN_JSON`: Mattermost 로그인 정보 JSON, 예: `{"login_id":"user@example.com","password":"pass"}` (선택사항)
 - `GEMINI_API_KEY`: Google Gemini API 키 (10층 이미지 파싱용, 선택사항)
 
-> **참고**: 10층 관련 Secret이 없으면 10층 식단은 placeholder로 표시됩니다. 식단 크롤링은 [welplan.pmh.codes](https://welplan.pmh.codes)를 통해 인증 없이 진행됩니다.
+> **참고**: 10층 관련 Secret이 없으면 10층 식단은 placeholder로 표시됩니다. 웰스토리 식단 크롤링에는 `WELSOTRY_LOGIN_JSON`이 필요합니다.
 
 #### 2. 주간 식단 크롤링
 
@@ -127,8 +131,7 @@ firebase use --add
 
 ```bash
 firebase functions:secrets:set MATTERMOST_WEBHOOK_URL
-firebase functions:secrets:set WELSTORY_USERNAME
-firebase functions:secrets:set WELSTORY_PASSWORD
+firebase functions:secrets:set WELSOTRY_LOGIN_JSON
 firebase functions:secrets:set MATTERMOST_BASE_URL
 firebase functions:secrets:set MATTERMOST_CHANNEL_ID
 firebase functions:secrets:set MM_LOGIN_JSON
@@ -144,6 +147,25 @@ firebase deploy --only functions
 ```
 
 배포 시 Cloud Scheduler 작업이 자동 생성됩니다.
+
+#### 기존 웰스토리 시크릿 통합
+
+1. `firebase functions:secrets:set WELSOTRY_LOGIN_JSON` 실행 후 다음 JSON을 실제 계정 정보로 바꿔 입력합니다. 시크릿 값에는 바깥 작은따옴표나 환경변수 이름을 붙이지 않습니다.
+
+```json
+{"username":"your-welstory-username","password":"your-welstory-password"}
+```
+
+2. `firebase deploy --only functions`로 두 함수의 시크릿 연결을 갱신합니다.
+3. `crawl_weekly_menu`를 수동 실행하여 정상 로그인 및 Storage 메뉴 생성을 확인합니다.
+4. 정상 확인 후 기존 시크릿을 삭제합니다. 다른 함수에서도 사용 중이라면 해당 함수도 먼저 전환해야 합니다.
+
+```bash
+firebase functions:secrets:destroy WELSTORY_USERNAME
+firebase functions:secrets:destroy WELSTORY_PASSWORD
+```
+
+시크릿 이름은 `WELSOTRY_LOGIN_JSON`입니다. GitHub Actions도 사용하는 경우 동일한 이름과 JSON으로 Repository Secret을 등록합니다. 통합 후 이 코드가 연결하는 시크릿은 7개에서 6개로 줄어듭니다.
 
 - `crawl_weekly_menu`: 매주 월요일 09:20 (Asia/Seoul), 메뉴를 `menus/YYYY-MM-DD.md`에 저장
 - `send_daily_lunch_notification`: 평일 09:30 (Asia/Seoul), Storage에서 메뉴를 읽어 웹훅 발송
