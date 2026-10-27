@@ -27,7 +27,7 @@ jobs:
 
     - name: Crawl weekly menu from Welstory Plus API and save to db/
       env:
-        WELSOTRY_LOGIN_JSON: ${{ secrets.WELSOTRY_LOGIN_JSON }}
+        WELSTORY_LOGIN_JSON: ${{ secrets.WELSTORY_LOGIN_JSON }}
         MATTERMOST_BASE_URL: ${{ secrets.MATTERMOST_BASE_URL }}
         MATTERMOST_CHANNEL_ID: ${{ secrets.MATTERMOST_CHANNEL_ID }}
         MM_LOGIN_JSON: ${{ secrets.MM_LOGIN_JSON }}

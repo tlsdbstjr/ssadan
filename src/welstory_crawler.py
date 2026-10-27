@@ -24,22 +24,22 @@ class WelstoryCrawler:
             "WELSTORY_RESTAURANT_QUERY", self.DEFAULT_RESTAURANT_QUERY
         )
         try:
-            login_data = json.loads(os.getenv("WELSOTRY_LOGIN_JSON", "{}"))
+            login_data = json.loads(os.getenv("WELSTORY_LOGIN_JSON", "{}"))
         except json.JSONDecodeError:
-            raise ValueError("WELSOTRY_LOGIN_JSON에 올바른 JSON 객체를 입력하세요.") from None
+            raise ValueError("WELSTORY_LOGIN_JSON에 올바른 JSON 객체를 입력하세요.") from None
         if not isinstance(login_data, dict):
-            raise ValueError("WELSOTRY_LOGIN_JSON은 username, password를 포함한 JSON 객체여야 합니다.")
+            raise ValueError("WELSTORY_LOGIN_JSON은 username, password를 포함한 JSON 객체여야 합니다.")
         self.username = login_data.get("username", "")
         self.password = login_data.get("password", "")
         if not all(isinstance(value, str) for value in (self.username, self.password)):
-            raise ValueError("WELSOTRY_LOGIN_JSON의 username, password는 문자열이어야 합니다.")
+            raise ValueError("WELSTORY_LOGIN_JSON의 username, password는 문자열이어야 합니다.")
         self.device_id = os.getenv("WELSTORY_DEVICE_ID", str(uuid.uuid4()))
         self._token: Optional[str] = None
 
     def _login(self) -> Optional[str]:
         """Welstory Plus 로그인 후 JWT 토큰 반환"""
         if not self.username or not self.password:
-            print("✗ WELSOTRY_LOGIN_JSON의 username / password가 설정되지 않았습니다.")
+            print("✗ WELSTORY_LOGIN_JSON의 username / password가 설정되지 않았습니다.")
             return None
         url = f"{self.WELSTORY_BASE_URL}/login"
         try:
